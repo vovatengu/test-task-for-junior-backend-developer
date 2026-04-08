@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,6 +12,8 @@ import (
 type testRepo struct {
 	createFn          func(ctx context.Context, task *taskdomain.Task) (*taskdomain.Task, error)
 	createRecurringFn func(ctx context.Context, parent *taskdomain.Task, children []*taskdomain.Task) ([]taskdomain.Task, error)
+	getByIDFn         func(ctx context.Context, id int64) (*taskdomain.Task, error)
+	deleteFn          func(ctx context.Context, id int64) error
 }
 
 func (r *testRepo) Create(ctx context.Context, task *taskdomain.Task) (*taskdomain.Task, error) {
@@ -21,14 +24,24 @@ func (r *testRepo) CreateRecurring(ctx context.Context, parent *taskdomain.Task,
 	return r.createRecurringFn(ctx, parent, children)
 }
 
-func (r *testRepo) GetByID(context.Context, int64) (*taskdomain.Task, error) { return nil, nil }
+func (r *testRepo) GetByID(ctx context.Context, id int64) (*taskdomain.Task, error) {
+	if r.getByIDFn != nil {
+		return r.getByIDFn(ctx, id)
+	}
+	return nil, nil
+}
 func (r *testRepo) GetSeries(context.Context, int64) ([]taskdomain.Task, error) {
 	return nil, nil
 }
 func (r *testRepo) Update(context.Context, *taskdomain.Task) (*taskdomain.Task, error) {
 	return nil, nil
 }
-func (r *testRepo) Delete(context.Context, int64) error { return nil }
+func (r *testRepo) Delete(ctx context.Context, id int64) error {
+	if r.deleteFn != nil {
+		return r.deleteFn(ctx, id)
+	}
+	return nil
+}
 func (r *testRepo) DeleteSeries(context.Context, int64) error {
 	return nil
 }
@@ -138,5 +151,68 @@ func TestValidateCreateInputInvalidEvenOdd(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected validation error")
+	}
+}
+
+func TestServiceDeleteRejectsHeadTask(t *testing.T) {
+	daily := taskdomain.RecurrenceDaily
+	var deleteCalled bool
+	repo := &testRepo{
+		getByIDFn: func(_ context.Context, id int64) (*taskdomain.Task, error) {
+			return &taskdomain.Task{ID: id, RecurrenceType: &daily}, nil
+		},
+		deleteFn: func(context.Context, int64) error {
+			deleteCalled = true
+			return nil
+		},
+	}
+	svc := NewService(repo)
+	err := svc.Delete(context.Background(), 42)
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	}
+	if deleteCalled {
+		t.Fatal("Delete must not be called for head task")
+	}
+}
+
+func TestServiceDeleteAllowsNonHeadTask(t *testing.T) {
+	var deletedID int64
+	repo := &testRepo{
+		getByIDFn: func(_ context.Context, id int64) (*taskdomain.Task, error) {
+			parent := int64(100)
+			return &taskdomain.Task{ID: id, ParentID: &parent}, nil
+		},
+		deleteFn: func(_ context.Context, id int64) error {
+			deletedID = id
+			return nil
+		},
+	}
+	svc := NewService(repo)
+	if err := svc.Delete(context.Background(), 7); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deletedID != 7 {
+		t.Fatalf("expected delete id 7, got %d", deletedID)
+	}
+}
+
+func TestServiceDeleteAllowsStandaloneTask(t *testing.T) {
+	var deletedID int64
+	repo := &testRepo{
+		getByIDFn: func(_ context.Context, id int64) (*taskdomain.Task, error) {
+			return &taskdomain.Task{ID: id}, nil
+		},
+		deleteFn: func(_ context.Context, id int64) error {
+			deletedID = id
+			return nil
+		},
+	}
+	svc := NewService(repo)
+	if err := svc.Delete(context.Background(), 99); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deletedID != 99 {
+		t.Fatalf("expected delete id 99, got %d", deletedID)
 	}
 }

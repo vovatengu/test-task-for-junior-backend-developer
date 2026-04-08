@@ -135,6 +135,14 @@ func (s *Service) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("%w: id must be positive", ErrInvalidInput)
 	}
 
+	task, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if task.RecurrenceType != nil {
+		return fmt.Errorf("%w: head task (recurrence_type set) must be deleted with DELETE /api/v1/tasks/{id}/series", ErrInvalidInput)
+	}
+
 	return s.repo.Delete(ctx, id)
 }
 

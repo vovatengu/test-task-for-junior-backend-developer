@@ -124,6 +124,7 @@
       "delete": {
         "tags": ["Tasks"],
         "summary": "Delete task",
+        "description": "Deletes a standalone task or a child instance. Head of a recurring series (recurrence_type set) must be removed via DELETE /api/v1/tasks/{id}/series.",
         "parameters": [
           {
             "name": "id",
@@ -134,6 +135,7 @@
         ],
         "responses": {
           "204": { "description": "Deleted" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
