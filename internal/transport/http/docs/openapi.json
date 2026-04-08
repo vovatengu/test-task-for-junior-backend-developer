@@ -48,10 +48,13 @@
         },
         "responses": {
           "201": {
-            "description": "Created task",
+            "description": "Created tasks",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Task" }
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Task" }
+                }
               }
             }
           },
@@ -131,6 +134,50 @@
           "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
+    },
+    "/api/v1/tasks/{id}/series": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Get task series (head + children)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64", "minimum": 1 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task series",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Task" }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Tasks"],
+        "summary": "Delete task series (head + children)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64", "minimum": 1 }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Deleted" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
     }
   },
   "components": {
@@ -167,8 +214,16 @@
           },
           "status": {
             "type": "string",
-            "enum": ["new", "in_progress", "done"],
+            "enum": ["new", "in_progress", "done", "cancel"],
             "example": "new"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-07T10:00:00Z"
+          },
+          "recurrence": {
+            "$ref": "#/components/schemas/Recurrence"
           }
         }
       },
@@ -186,7 +241,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["new", "in_progress", "done"],
+            "enum": ["new", "in_progress", "done", "cancel"],
             "example": "in_progress"
           }
         }
@@ -202,9 +257,24 @@
           },
           "status": {
             "type": "string",
-            "enum": ["new", "in_progress", "done"],
+            "enum": ["new", "in_progress", "done", "cancel"],
             "example": "new"
           },
+          "parent_id": { "type": "integer", "format": "int64", "example": 12 },
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-03-24T00:00:00Z"
+          },
+          "recurrence_type": {
+            "type": "string",
+            "enum": ["daily", "monthly", "specific_dates", "even_odd"],
+            "example": "daily"
+          },
+          "recurrence_params": {
+            "$ref": "#/components/schemas/RecurrenceParams"
+          },
+          "recurrence": { "$ref": "#/components/schemas/Recurrence" },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -221,6 +291,46 @@
         "type": "object",
         "properties": {
           "error": { "type": "string", "example": "task not found" }
+        }
+      },
+      "RecurrenceParams": {
+        "type": "object",
+        "properties": {
+          "step": { "type": "integer", "minimum": 1, "example": 2 },
+          "days_of_month": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 1, "maximum": 30 },
+            "example": [5, 20]
+          },
+          "dates": {
+            "type": "array",
+            "items": { "type": "string", "example": "2026-05-10" }
+          },
+          "is_even": { "type": "boolean", "example": true }
+        }
+      },
+      "Recurrence": {
+        "type": "object",
+        "required": ["type", "start_date", "end_date"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["daily", "monthly", "specific_dates", "even_odd"],
+            "example": "daily"
+          },
+          "start_date": { "type": "string", "example": "2026-04-01" },
+          "end_date": { "type": "string", "example": "2026-04-10" },
+          "interval": { "type": "integer", "minimum": 1, "example": 2 },
+          "days_of_month": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 1, "maximum": 30 },
+            "example": [5, 20]
+          },
+          "dates": {
+            "type": "array",
+            "items": { "type": "string", "example": "2026-05-10" }
+          },
+          "is_even": { "type": "boolean", "example": true }
         }
       }
     }
