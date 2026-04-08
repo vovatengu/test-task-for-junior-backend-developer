@@ -76,10 +76,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Task",
+            "description": "Task list with one element",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Task" }
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Task" }
+                }
               }
             }
           },

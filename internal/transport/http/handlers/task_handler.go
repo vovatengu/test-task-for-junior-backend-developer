@@ -81,7 +81,7 @@ func (h *TaskHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, newTaskDTO(task))
+	writeJSON(w, http.StatusOK, []taskDTO{newTaskDTO(task)})
 }
 
 func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
