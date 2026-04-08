@@ -31,13 +31,41 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Title:       req.Title,
 		Description: req.Description,
 		Status:      req.Status,
+		ScheduledAt: req.ScheduledAt,
+		Recurrence:  mapRecurrence(req.Recurrence),
 	})
 	if err != nil {
 		writeUsecaseError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, newTaskDTO(created))
+	response := make([]taskDTO, 0, len(created))
+	for i := range created {
+		response = append(response, newTaskDTO(&created[i]))
+	}
+	writeJSON(w, http.StatusCreated, response)
+}
+
+func mapRecurrence(in *recurrenceDTO) *taskusecase.RecurrenceInput {
+	if in == nil {
+		return nil
+	}
+	out := &taskusecase.RecurrenceInput{
+		Type:      in.Type,
+		StartDate: in.StartDate,
+		EndDate:   in.EndDate,
+	}
+	switch in.Type {
+	case "daily":
+		out.Daily = &taskusecase.DailyRecurrenceInput{Interval: in.Interval}
+	case "monthly":
+		out.Monthly = &taskusecase.MonthlyRecurrenceInput{DaysOfMonth: in.DaysOfMonth}
+	case "specific_dates":
+		out.Specific = &taskusecase.SpecificDatesRecurrenceInput{Dates: in.Dates}
+	case "even_odd":
+		out.EvenOdd = &taskusecase.EvenOddRecurrenceInput{IsEven: in.IsEven}
+	}
+	return out
 }
 
 func (h *TaskHandler) GetByID(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +118,41 @@ func (h *TaskHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.usecase.Delete(r.Context(), id); err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *TaskHandler) GetSeries(w http.ResponseWriter, r *http.Request) {
+	id, err := getIDFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	tasks, err := h.usecase.GetSeries(r.Context(), id)
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+
+	response := make([]taskDTO, 0, len(tasks))
+	for i := range tasks {
+		response = append(response, newTaskDTO(&tasks[i]))
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *TaskHandler) DeleteSeries(w http.ResponseWriter, r *http.Request) {
+	id, err := getIDFromRequest(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.usecase.DeleteSeries(r.Context(), id); err != nil {
 		writeUsecaseError(w, err)
 		return
 	}
